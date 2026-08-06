@@ -1,0 +1,7 @@
+{
+  "name": "OmniPC AI Assistant - Voice & PC Control",
+  "description": "AI assistant for voice and text PC management, startup routines, mood check-ins, custom voice configuration, and desktop/Android installer bridge.",
+  "requestFramePermissions": ["microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
