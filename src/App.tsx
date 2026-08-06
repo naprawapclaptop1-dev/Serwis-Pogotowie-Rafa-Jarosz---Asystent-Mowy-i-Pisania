@@ -17,13 +17,21 @@ import { StartupRoutines } from './components/StartupRoutines';
 import { BackupRoutine } from './components/BackupRoutine';
 import { AnalyticsView } from './components/AnalyticsView';
 import { InstallerHub } from './components/InstallerHub';
+import { GoogleSmartHome } from './components/GoogleSmartHome';
 import { PersonaType, ChatMessage, VoiceConfig, SystemStatus, BackupConfig, AnalyticsRecord, ThemeVibe } from './types';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('chat');
   const [persona, setPersona] = useState<PersonaType>('doctor');
   const [themeVibe, setThemeVibe] = useState<ThemeVibe>('cyan');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'init-1',
+      role: 'assistant',
+      text: 'Serwis Pogotowie Rafał Jarosz & Asystent AI gotowy do akcji! Zarządzam komputerem, laptopem, smartfonem, telewizorem, dekoderem i ruterami Wi-Fi. Jak się dzisiaj czujesz? W czym mogę pomóc? Co mam dla Ciebie uruchomić lub sprawdzić?',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+  ]);
   const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>({
     voiceName: 'Serwis Rafał Jarosz Master Voice',
     pitch: 1.0,
@@ -123,6 +131,9 @@ export default function App() {
         )}
         {activeTab === 'installer' && (
           <InstallerHub />
+        )}
+        {activeTab === 'smart_home' && (
+          <GoogleSmartHome />
         )}
       </main>
     </div>

@@ -11,7 +11,8 @@ import {
   Smartphone,
   Laptop,
   HardDrive,
-  BarChart3
+  BarChart3,
+  Home
 } from 'lucide-react';
 import { PersonaType, SystemStatus } from '../types';
 
@@ -159,6 +160,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <BarChart3 className="w-5 h-5" />
           <span>Statystyki & Analytics</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('smart_home')}
+          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${
+            activeTab === 'smart_home'
+              ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30'
+              : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+          }`}
+        >
+          <Home className="w-5 h-5" />
+          <span>Google Smart Home (IoT)</span>
         </button>
 
         <button

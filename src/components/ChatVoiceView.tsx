@@ -37,6 +37,7 @@ export const ChatVoiceView: React.FC<ChatVoiceViewProps> = ({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [loading, setLoading] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [ttsDebug, setTtsDebug] = useState<string>('');
   const [recentCommands, setRecentCommands] = useState<string[]>([
     "Włącz przeglądarkę Chrome",
     "Optymalizuj pamięć RAM",
@@ -92,22 +93,110 @@ export const ChatVoiceView: React.FC<ChatVoiceViewProps> = ({
     setIsListening(false);
   };
 
+  // Web Audio API beep sound for guaranteed audible feedback
+  const playAudioBeep = () => {
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15); // A5
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } catch (e) {
+      console.warn("Audio beep error:", e);
+    }
+  };
+
   // Speech Synthesis
   const speakText = (text: string) => {
-    if (!voiceEnabled || !('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
+    playAudioBeep();
+    if (!('speechSynthesis' in window)) {
+      setTtsDebug('Brak wsparcia dla speechSynthesis w tej przeglądarce.');
+      return;
+    }
+    if (!voiceEnabled) {
+      setTtsDebug('Głos jest wyłączony przyciskiem.');
+      return;
+    }
+    
+    try {
+      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+        window.speechSynthesis.cancel();
+      }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'pl-PL';
-    utterance.pitch = voiceConfig.pitch;
-    utterance.rate = voiceConfig.rate;
-    utterance.volume = voiceConfig.volume;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'pl-PL';
+      utterance.pitch = voiceConfig.pitch || 1.0;
+      utterance.rate = voiceConfig.rate || 1.0;
+      utterance.volume = voiceConfig.volume || 1.0;
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+      const voices = window.speechSynthesis.getVoices();
+      if (voices && voices.length > 0) {
+        const polishVoice = voices.find(v => v.lang.includes('pl') || v.lang.includes('PL') || v.name.includes('Polish') || v.name.includes('Polski'));
+        if (polishVoice) {
+          utterance.voice = polishVoice;
+          setTtsDebug(`Użyto głosu: ${polishVoice.name}`);
+        } else {
+          utterance.voice = voices[0];
+          setTtsDebug(`Brak pl-PL, użyto: ${voices[0].name}`);
+        }
+      } else {
+         setTtsDebug('Brak dostępnych głosów (voices.length = 0).');
+      }
 
-    window.speechSynthesis.speak(utterance);
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        setTtsDebug(prev => prev + ' [Mówienie rozpoczęte...]');
+      };
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        setTtsDebug(prev => prev + ' [Zakończono]');
+      };
+      utterance.onerror = (e) => {
+        setIsSpeaking(false);
+        setTtsDebug(prev => prev + ` [Błąd: ${e.error}]`);
+      };
+
+      window.speechSynthesis.speak(utterance);
+      
+      // Chrome sometimes pauses speech queue
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+        setTtsDebug(prev => prev + ' [Wymuszono wznowienie]');
+      }
+    } catch (e: any) {
+      console.warn("Speech synthesis error:", e);
+      setTtsDebug(`Wyjątek catch: ${e.message}`);
+      setIsSpeaking(false);
+    }
+  };
+
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      // pre-load voices
+      window.speechSynthesis.getVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          window.speechSynthesis.getVoices();
+        };
+      }
+    }
+  }, []);
+
+  const testVoice = () => {
+    playAudioBeep();
+    speakText("Serwis Rafał Jarosz i Asystent AI. Słucham Cię! W czym mogę pomóc? Co mam włączyć?");
   };
 
   const stopSpeaking = () => {
@@ -197,6 +286,14 @@ export const ChatVoiceView: React.FC<ChatVoiceViewProps> = ({
 
         <div className="flex items-center gap-3">
           <button
+            onClick={testVoice}
+            className="flex items-center gap-1.5 bg-cyan-500/25 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-500/50 text-xs px-3 py-1.5 rounded-lg transition font-semibold shadow-md shadow-cyan-500/20 animate-pulse"
+            title="Kliknij, aby odblokować i przetestować dźwięk asystenta"
+          >
+            <Volume2 className="w-4 h-4 text-cyan-300" /> Odblokuj i Testuj Głos
+          </button>
+
+          <button
             onClick={() => setVoiceEnabled(!voiceEnabled)}
             className={`p-2 rounded-lg border transition ${
               voiceEnabled 
@@ -217,6 +314,29 @@ export const ChatVoiceView: React.FC<ChatVoiceViewProps> = ({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Audio Unlock Notice Banner */}
+      <div className="bg-cyan-950/80 border-b border-cyan-800/60 p-4 text-sm text-cyan-100 flex flex-col gap-3">
+        <div className="flex items-start gap-3">
+          <Volume2 className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+          <div className="flex-1 leading-relaxed">
+            <p className="font-semibold text-white mb-1">Dźwięk asystenta może być blokowany przez ramkę (iframe)!</p>
+            <p>1. Kliknij przycisk <strong>"Odblokuj Głos"</strong> poniżej, aby wymusić odtworzenie.</p>
+            <p>2. Jeśli to nie zadziała, <strong>otwórz tę stronę w nowej karcie</strong> przeglądarki (użyj ikony "Open in new tab" w prawym górnym rogu edytora).</p>
+            {ttsDebug && (
+              <div className="mt-2 p-2 bg-black/40 rounded border border-cyan-500/20 text-xs font-mono text-cyan-300">
+                Debug: {ttsDebug}
+              </div>
+            )}
+          </div>
+        </div>
+        <button 
+          onClick={testVoice}
+          className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm transition shadow-lg self-start flex items-center gap-2 animate-pulse"
+        >
+          <Volume2 className="w-4 h-4" /> Odblokuj Głos i Testuj
+        </button>
       </div>
 
       {/* Pulsing AI Indicator */}
@@ -310,7 +430,18 @@ export const ChatVoiceView: React.FC<ChatVoiceViewProps> = ({
                 </div>
               )}
 
-              <span className="text-[10px] text-slate-500 block px-1">{msg.timestamp}</span>
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[10px] text-slate-500">{msg.timestamp}</span>
+                {msg.role === 'assistant' && (
+                  <button
+                    onClick={() => speakText(msg.text)}
+                    className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 bg-cyan-500/10 hover:bg-cyan-500/20 px-2 py-0.5 rounded transition"
+                    title="Przeczytaj tę wiadomość głośno"
+                  >
+                    <Volume2 className="w-3 h-3" /> Przeczytaj
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
